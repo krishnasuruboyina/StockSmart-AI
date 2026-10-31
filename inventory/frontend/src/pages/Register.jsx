@@ -21,7 +21,7 @@ export default function Register() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "student",
+    role: "user",
   });
 
   const [showPassword, setShowPassword] = useState(false);
