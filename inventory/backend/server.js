@@ -17,10 +17,21 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// 2. Middleware
+// 2. CORS Configuration
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ai-inventory-procurement-1.onrender.com",
+];
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
   })
 );
 
@@ -98,7 +109,7 @@ mongoose
     console.log("MongoDB connected successfully");
 
     app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((error) => {

@@ -44,9 +44,10 @@ export default function Login() {
       setLoading(true);
 
       const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000";
+        import.meta.env.VITE_API_URL ||
+        "http://localhost:5000/api";
 
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,7 +58,9 @@ export default function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed. Please try again.");
+        throw new Error(
+          data.message || "Login failed. Please try again."
+        );
       }
 
       if (data.token) {
@@ -87,7 +90,7 @@ export default function Login() {
       }}
     >
       <div className="w-full max-w-5xl grid md:grid-cols-2 overflow-hidden rounded-3xl border border-blue-200/20 shadow-2xl shadow-black/30">
-        
+
         {/* Left information panel */}
         <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-[#123D80] via-[#071941] to-[#1761A8]">
           <div>
@@ -95,6 +98,7 @@ export default function Login() {
               <div className="p-2.5 rounded-xl bg-cyan-300/15">
                 <Boxes size={27} className="text-cyan-300" />
               </div>
+
               <div>
                 <h1 className="text-xl font-bold">
                   Inventory<span className="text-cyan-300">Pro</span>
@@ -162,6 +166,7 @@ export default function Login() {
                   size={18}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
+
                 <input
                   type="email"
                   name="email"
@@ -199,7 +204,9 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-700"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showPassword ? (
                     <EyeOff size={18} />
