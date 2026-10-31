@@ -1,0 +1,441 @@
+@import "tailwindcss";
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@import "tailwindcss";
+
+/* ==============================
+   GLOBAL VARIABLES
+============================== */
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  color: #0f172a;
+  background: #020817;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --primary: #1d4ed8;
+  --primary-dark: #1e40af;
+  --accent: #22d3ee;
+  --gold: #fbbf24;
+
+  --background: #dcecff;
+  --dark-background: #020817;
+}
+
+/* ==============================
+   RESET
+============================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  background: #020817;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ==============================
+   WELCOME PAGE
+============================== */
+
+.welcome-page {
+  min-height: 100vh;
+  color: white;
+  background: linear-gradient(
+    120deg,
+    #020817 0%,
+    #061b45 40%,
+    #082d70 72%,
+    #0756b8 100%
+  );
+}
+
+/* ==============================
+   AUTH PAGES
+============================== */
+
+.auth-page {
+  min-height: 100vh;
+  background: linear-gradient(
+    120deg,
+    #020817 0%,
+    #061b45 45%,
+    #082d70 75%,
+    #0756b8 100%
+  );
+}
+
+/* ==============================
+   DASHBOARD THEME
+============================== */
+
+.dashboard-theme {
+  min-height: 100vh;
+  background: #dcecff;
+  color: #0f172a;
+}
+
+/* ==============================
+   INPUTS
+============================== */
+
+input,
+select,
+textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* ==============================
+   BUTTONS
+============================== */
+
+button {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* ==============================
+   TABLES
+============================== */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* ==============================
+   SCROLLBAR
+============================== */
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #081a36;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #31558a;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #22d3ee;
+}
+
+/* ==============================
+   SELECTION
+============================== */
+
+::selection {
+  background: #22d3ee;
+  color: #020817;
+}
+
+/* ==============================
+   RESPONSIVE
+============================== */
+
+@media (max-width: 640px) {
+  body {
+    min-width: 320px;
+  }
+}
+
+/* ===== Dashboard Light Blue Theme ===== */
+
+.dashboard-theme {
+  min-height: 100vh;
+  background: #dcecff;
+  color: #172554;
+}
+
+/* Dashboard cards */
+.dashboard-theme .card,
+.dashboard-theme .dashboard-card {
+  background: #f8fbff;
+  border: 1px solid #e8bd55;
+  border-radius: 14px;
+}
+
+/* Gold borders */
+.dashboard-theme .gold-border {
+  border: 1px solid #e8bd55;
+}
+
+/* Gold buttons */
+.dashboard-theme .gold-button {
+  background: #e8bd55;
+  color: #172554;
+  border-radius: 9px;
+  font-weight: 600;
+}
+
+.dashboard-theme .gold-button:hover {
+  background: #d9a936;
+}
+
+/* Dashboard headings */
+.dashboard-theme h1,
+.dashboard-theme h2,
+.dashboard-theme h3 {
+  color: #172554;
+}
+
+/* Dashboard tables */
+.dashboard-theme table {
+  background: #f8fbff;
+}
+
+.dashboard-theme th {
+  background: #eaf3ff;
+  color: #172554;
+  border-bottom: 1px solid #e8bd55;
+}
+
+.dashboard-theme td {
+  border-bottom: 1px solid #d8e5f5;
+}
+
+/* Dashboard inputs */
+.dashboard-theme input,
+.dashboard-theme select {
+  background: #ffffff;
+  border: 1px solid #e8bd55;
+  border-radius: 8px;
+  color: #172554;
+}
+
+/* ===== Inventory Dashboard Theme ===== */
+
+.dashboard-shell {
+  min-height: 100vh;
+  background: #dcecff !important;
+  color: #172554;
+}
+
+/* Header */
+.dashboard-shell header {
+  background: #f8fbff !important;
+  border-bottom: 1px solid #d6ad45 !important;
+}
+
+/* Dashboard cards */
+.dashboard-shell main > section > div {
+  background: #f8fbff !important;
+  border: 1px solid #d6ad45 !important;
+  border-radius: 16px;
+  box-shadow: 0 3px 12px rgba(30, 64, 100, 0.06);
+}
+
+/* Dashboard headings */
+.dashboard-shell main h1,
+.dashboard-shell main h2 {
+  color: #172554;
+}
+
+/* Dashboard tables */
+.dashboard-shell table th {
+  background: #eaf3ff;
+  border-bottom: 1px solid #d6ad45;
+}
+
+/* Sidebar */
+.dashboard-shell aside {
+  background: #071b42 !important;
+}
+
+/* Gold buttons */
+.dashboard-shell .gold-button {
+  background: #e5b94c;
+  color: #172554;
+}
+/* ===== Global InventoryPro Theme ===== */
+
+:root {
+  --page-bg: #eaf3ff;
+  --card-bg: #f8fbff;
+  --gold: #d6ad45;
+  --text-primary: #172554;
+}
+
+/* All application pages */
+#root {
+  min-height: 100vh;
+}
+
+.dashboard-shell,
+.page-container,
+main {
+  color: var(--text-primary);
+}
+
+/* Page backgrounds */
+.dashboard-shell,
+.page-container {
+  background: var(--page-bg);
+  min-height: 100vh;
+}
+
+/* Cards */
+.dashboard-shell .bg-white,
+.page-container .bg-white {
+  background: var(--card-bg) !important;
+  border-color: var(--gold) !important;
+}
+
+/* Headers */
+.dashboard-shell header,
+.page-container header {
+  background: var(--card-bg) !important;
+  border-bottom: 1px solid var(--gold) !important;
+}
+
+/* Tables */
+.dashboard-shell th,
+.page-container th {
+  background: #eaf3ff;
+  border-color: var(--gold);
+}
+
+/* Sidebar */
+.dashboard-shell aside,
+.page-container aside {
+  background: #071b42;
+}
+/* Light blue background + Gold borders */
+
+.dashboard-shell,
+.page-container {
+  background-color: #eaf3ff !important;
+}
+
+/* Cards and containers */
+.dashboard-shell .border,
+.page-container .border {
+  border-color: #d6ad45 !important;
+}
+
+/* White backgrounds */
+.dashboard-shell .bg-white,
+.page-container .bg-white {
+  background-color: #f8fbff !important;
+}
+/* InventoryPro - Global Theme */
+
+/* Page backgrounds */
+.bg-slate-100,
+.bg-gray-50,
+.bg-slate-50 {
+  background-color: #eaf3ff !important;
+}
+
+/* Card backgrounds */
+.bg-white {
+  background-color: #f8fbff !important;
+}
+
+/* Gold borders */
+.border-slate-200,
+.border-gray-200,
+.border-slate-300 {
+  border-color: #d6ad45 !important;
+}
+
+/* Page headers */
+header {
+  border-bottom-color: #d6ad45 !important;
+}
