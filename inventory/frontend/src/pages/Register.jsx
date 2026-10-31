@@ -43,8 +43,8 @@ export default function Register() {
     setSuccess("");
 
     if (
-      !formData.name ||
-      !formData.email ||
+      !formData.name.trim() ||
+      !formData.email.trim() ||
       !formData.password ||
       !formData.confirmPassword
     ) {
@@ -52,8 +52,8 @@ export default function Register() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError("Password must contain at least 6 characters.");
+    if (formData.password.length < 8) {
+      setError("Password must contain at least 8 characters.");
       return;
     }
 
@@ -65,17 +65,20 @@ export default function Register() {
     try {
       setLoading(true);
 
+      // Render URL includes /api.
+      // Local URL also includes /api.
       const API_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:5000";
+        import.meta.env.VITE_API_URL ||
+        "http://localhost:5000/api";
 
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
           password: formData.password,
           role: formData.role,
         }),
@@ -87,7 +90,9 @@ export default function Register() {
         throw new Error(data.message || "Registration failed.");
       }
 
-      setSuccess("Account created successfully! Redirecting to login...");
+      setSuccess(
+        "Account created successfully! Redirecting to login..."
+      );
 
       setTimeout(() => {
         navigate("/login");
@@ -153,6 +158,7 @@ export default function Register() {
         {/* Registration form */}
         <div className="bg-white text-slate-800 p-7 sm:p-10">
           <button
+            type="button"
             onClick={() => navigate("/")}
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-700 transition mb-7"
           >
@@ -232,14 +238,14 @@ export default function Register() {
               </label>
 
               <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 bg-white"
-              >
-                <option value="student">Student</option>
-                <option value="manager">Manager</option>
-              </select>
+  name="role"
+  value={formData.role}
+  onChange={handleChange}
+  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 bg-white"
+>
+  <option value="user">User</option>
+  <option value="admin">Admin</option>
+</select>
             </div>
 
             {/* Password */}
@@ -331,6 +337,7 @@ export default function Register() {
               </div>
             )}
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
