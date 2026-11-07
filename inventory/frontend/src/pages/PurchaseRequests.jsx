@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   ShoppingCart,
@@ -22,9 +21,15 @@ export default function PurchaseRequests() {
       const response = await api.get("/purchase-requests");
       const result = response.data;
 
-      const list = Array.isArray(result)
-        ? result
-        : result.data || result.requests || result.purchaseRequests || [];
+      const payload = result?.data ?? result;
+
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.requests)
+          ? payload.requests
+          : Array.isArray(payload?.purchaseRequests)
+            ? payload.purchaseRequests
+            : [];
 
       setRequests(list);
     } catch (err) {
@@ -32,6 +37,7 @@ export default function PurchaseRequests() {
         err.response?.data?.message ||
           "Unable to load purchase requests. Please check the backend API."
       );
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -81,16 +87,43 @@ export default function PurchaseRequests() {
       request.totalCost ??
       request.estimatedCost;
 
-    return amount === undefined || amount === null
-      ? "—"
-      : `₹${Number(amount).toLocaleString("en-IN")}`;
+    if (amount === undefined || amount === null) {
+      return "—";
+    }
+
+    const numericAmount = Number(amount);
+
+    return Number.isFinite(numericAmount)
+      ? `₹${numericAmount.toLocaleString("en-IN")}`
+      : "—";
   };
+
+  const getCreatedDate = (date) => {
+    if (!date) return "—";
+
+    const parsedDate = new Date(date);
+
+    return Number.isNaN(parsedDate.getTime())
+      ? "—"
+      : parsedDate.toLocaleDateString("en-IN");
+  };
+
+  const pendingCount = requests.filter((request) =>
+    String(request.status || "Pending")
+      .toLowerCase()
+      .includes("pending")
+  ).length;
+
+  const approvedCount = requests.filter((request) =>
+    String(request.status || "")
+      .toLowerCase()
+      .includes("approved")
+  ).length;
 
   return (
     <div className="min-h-screen bg-[#eaf3ff] p-4 text-slate-800 md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Dark navy header with gold border */}
         <div className="flex flex-col gap-4 rounded-2xl border border-[#d6ad45] bg-[#071b42] p-6 shadow-lg sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-white md:text-3xl">
@@ -117,7 +150,6 @@ export default function PurchaseRequests() {
           </button>
         </div>
 
-        {/* Error message */}
         {error && (
           <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
             <AlertCircle className="mt-0.5 shrink-0" size={20} />
@@ -128,7 +160,6 @@ export default function PurchaseRequests() {
           </div>
         )}
 
-        {/* Summary cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-[#d6ad45] bg-[#f8fbff] p-5 shadow-sm">
             <FileText className="mb-3 text-blue-600" size={24} />
@@ -142,13 +173,7 @@ export default function PurchaseRequests() {
             <ShoppingCart className="mb-3 text-yellow-600" size={24} />
             <p className="text-sm text-slate-500">Pending</p>
             <p className="mt-1 text-2xl font-bold text-slate-800">
-              {
-                requests.filter((request) =>
-                  String(request.status || "Pending")
-                    .toLowerCase()
-                    .includes("pending")
-                ).length
-              }
+              {pendingCount}
             </p>
           </div>
 
@@ -156,18 +181,11 @@ export default function PurchaseRequests() {
             <Package className="mb-3 text-green-600" size={24} />
             <p className="text-sm text-slate-500">Approved</p>
             <p className="mt-1 text-2xl font-bold text-slate-800">
-              {
-                requests.filter((request) =>
-                  String(request.status || "")
-                    .toLowerCase()
-                    .includes("approved")
-                ).length
-              }
+              {approvedCount}
             </p>
           </div>
         </div>
 
-        {/* Purchase Requests Table */}
         <div className="overflow-hidden rounded-xl border border-[#d6ad45] bg-[#f8fbff] shadow-sm">
           <div className="border-b border-[#d6ad45] p-5">
             <h2 className="font-semibold text-slate-800">
@@ -193,7 +211,7 @@ export default function PurchaseRequests() {
                 No purchase requests found
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Requests will appear here once they are created in the backend.
+                Requests will appear here once they are created.
               </p>
             </div>
           ) : (
@@ -222,7 +240,7 @@ export default function PurchaseRequests() {
                 <tbody>
                   {requests.map((request, index) => (
                     <tr
-                      key={request._id || index}
+                      key={request._id || request.id || index}
                       className="border-b border-[#e5cf91] transition hover:bg-[#eaf3ff]"
                     >
                       <td className="px-5 py-4 font-medium text-slate-800">
@@ -248,11 +266,7 @@ export default function PurchaseRequests() {
                       </td>
 
                       <td className="px-5 py-4 text-slate-500">
-                        {request.createdAt
-                          ? new Date(request.createdAt).toLocaleDateString(
-                              "en-IN"
-                            )
-                          : "—"}
+                        {getCreatedDate(request.createdAt)}
                       </td>
                     </tr>
                   ))}

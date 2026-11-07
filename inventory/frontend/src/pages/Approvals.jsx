@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   CheckCircle,
@@ -9,13 +8,18 @@ import {
   Package,
 } from "lucide-react";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Approvals() {
+  const { role } = useAuth();
+
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const isAdmin = role?.toLowerCase() === "admin";
 
   const loadRequests = async () => {
     setLoading(true);
@@ -23,11 +27,15 @@ export default function Approvals() {
 
     try {
       const response = await api.get("/purchase-requests");
-      const result = response.data;
+      const payload = response.data?.data ?? response.data;
 
-      const list = Array.isArray(result)
-        ? result
-        : result.data || result.requests || [];
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.requests)
+          ? payload.requests
+          : Array.isArray(payload?.purchaseRequests)
+            ? payload.purchaseRequests
+            : [];
 
       setRequests(list);
     } catch (err) {
@@ -35,18 +43,26 @@ export default function Approvals() {
         err.response?.data?.message ||
           "Unable to load purchase requests."
       );
+      setRequests([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    if (isAdmin) {
+      loadRequests();
+    } else {
+      setLoading(false);
+    }
+  }, [isAdmin]);
 
   const updateStatus = async (request, status) => {
+    if (!request._id || updatingId) return;
+
     const productName =
       request.product?.name ||
+      request.product?.productName ||
       request.productName ||
       "this product";
 
@@ -67,7 +83,7 @@ export default function Approvals() {
       );
 
       setMessage(
-        response.data.message ||
+        response.data?.message ||
           `Purchase request ${status.toLowerCase()} successfully.`
       );
 
@@ -82,26 +98,41 @@ export default function Approvals() {
     }
   };
 
-  const pendingRequests = requests.filter(
-    (request) => request.status === "Pending"
-  );
+  const isPending = (request) =>
+    String(request.status || "Pending").toLowerCase() === "pending";
 
+  const pendingRequests = requests.filter(isPending);
   const completedRequests = requests.filter(
-    (request) => request.status !== "Pending"
+    (request) => !isPending(request)
   );
 
   const getProductName = (request) => {
-    if (request.product && typeof request.product === "object") {
-      return request.product.name || "Product";
+    const product = request.product;
+
+    if (product && typeof product === "object") {
+      return product.name || product.productName || "Product";
     }
 
     return request.productName || "Product";
   };
 
+  const getSupplierName = (request) => {
+    const supplier = request.supplier;
+
+    if (supplier && typeof supplier === "object") {
+      return supplier.name || supplier.companyName || "—";
+    }
+
+    return supplier || "—";
+  };
+
   const getStatusStyle = (status) => {
-    if (status === "Approved") return "bg-green-100 text-green-700";
-    if (status === "Rejected") return "bg-red-100 text-red-700";
-    if (status === "Received") return "bg-blue-100 text-blue-700";
+    const value = String(status || "Pending").toLowerCase();
+
+    if (value.includes("approved")) return "bg-green-100 text-green-700";
+    if (value.includes("reject")) return "bg-red-100 text-red-700";
+    if (value.includes("received")) return "bg-blue-100 text-blue-700";
+
     return "bg-yellow-100 text-yellow-700";
   };
 
@@ -122,23 +153,25 @@ export default function Approvals() {
         </thead>
 
         <tbody>
-          {items.map((request) => (
+          {items.map((request, index) => (
             <tr
-              key={request._id}
+              key={request._id || request.id || index}
               className="border-b border-[#e5cf91] transition hover:bg-[#eaf3ff]"
             >
               <td className="px-5 py-4 font-medium text-slate-800">
                 {getProductName(request)}
               </td>
 
-              <td className="px-5 py-4">{request.quantity}</td>
+              <td className="px-5 py-4">
+                {request.quantity ?? request.requestedQuantity ?? "—"}
+              </td>
 
               <td className="px-5 py-4">
                 ₹{Number(request.totalAmount || 0).toLocaleString("en-IN")}
               </td>
 
               <td className="px-5 py-4">
-                {request.supplier || "—"}
+                {getSupplierName(request)}
               </td>
 
               <td className="px-5 py-4">
@@ -147,7 +180,7 @@ export default function Approvals() {
                     request.status
                   )}`}
                 >
-                  {request.status}
+                  {request.status || "Pending"}
                 </span>
               </td>
 
@@ -185,11 +218,18 @@ export default function Approvals() {
     </div>
   );
 
+  if (!isAdmin) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+        You do not have permission to access Manager Approvals.
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#eaf3ff] p-4 text-slate-800 md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Dark navy header with gold border */}
         <div className="flex flex-col gap-4 rounded-2xl border border-[#d6ad45] bg-[#071b42] p-6 shadow-lg sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-white md:text-3xl">
@@ -215,7 +255,6 @@ export default function Approvals() {
           </button>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
             <AlertCircle size={20} className="mt-0.5 shrink-0" />
@@ -223,14 +262,12 @@ export default function Approvals() {
           </div>
         )}
 
-        {/* Success */}
         {message && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
             {message}
           </div>
         )}
 
-        {/* Summary cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-[#d6ad45] bg-[#f8fbff] p-5 shadow-sm">
             <ClipboardCheck className="mb-3 text-blue-600" size={24} />
@@ -255,13 +292,11 @@ export default function Approvals() {
           </div>
         </div>
 
-        {/* Pending approvals */}
         <section className="overflow-hidden rounded-xl border border-[#d6ad45] bg-[#f8fbff] shadow-sm">
           <div className="border-b border-[#d6ad45] p-5">
             <h2 className="font-semibold text-slate-800">
               Pending Approval
             </h2>
-
             <p className="mt-1 text-sm text-slate-500">
               Approving or rejecting a request updates its backend status.
             </p>
@@ -293,7 +328,6 @@ export default function Approvals() {
           )}
         </section>
 
-        {/* Request history */}
         <section className="overflow-hidden rounded-xl border border-[#d6ad45] bg-[#f8fbff] shadow-sm">
           <div className="border-b border-[#d6ad45] p-5">
             <h2 className="font-semibold text-slate-800">
@@ -301,7 +335,11 @@ export default function Approvals() {
             </h2>
           </div>
 
-          {!loading && completedRequests.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center text-slate-500">
+              Loading history...
+            </div>
+          ) : completedRequests.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-500">
               No processed requests yet.
             </p>

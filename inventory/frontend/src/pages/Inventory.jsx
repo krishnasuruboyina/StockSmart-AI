@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -10,8 +9,10 @@ import {
   X,
   LoaderCircle,
   CheckCircle,
+  Save,
 } from "lucide-react";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const EMPTY_FORM = {
   name: "",
@@ -22,7 +23,13 @@ const EMPTY_FORM = {
 };
 
 export default function Inventory() {
+  const { role } = useAuth();
+  const isAdmin = role?.toLowerCase() === "admin";
+
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState({});
+  const [savingSupplier, setSavingSupplier] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
@@ -38,7 +45,19 @@ export default function Inventory() {
     try {
       const res = await api.get("/inventory");
       const data = res.data?.data ?? res.data;
-      setProducts(Array.isArray(data) ? data : []);
+      const productList = Array.isArray(data) ? data : [];
+
+      setProducts(productList);
+
+      const selections = {};
+      productList.forEach((p) => {
+        selections[p._id] =
+          typeof p.supplier === "object"
+            ? p.supplier?._id || ""
+            : p.supplier || "";
+      });
+
+      setSelectedSuppliers(selections);
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -49,12 +68,34 @@ export default function Inventory() {
     }
   }, []);
 
+  const loadSuppliers = useCallback(async () => {
+    if (!isAdmin) return;
+
+    try {
+      const res = await api.get("/suppliers");
+      const data = res.data?.data ?? res.data?.suppliers ?? res.data;
+      setSuppliers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Suppliers load cheyyalekapoyam."
+      );
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+    loadSuppliers();
+  }, [loadProducts, loadSuppliers]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      setError("Only Admin can add inventory products.");
+      return;
+    }
+
     setError("");
     setSuccess("");
 
@@ -90,6 +131,7 @@ export default function Inventory() {
       setForm(EMPTY_FORM);
       setShowForm(false);
       setSuccess("Product added successfully.");
+
       await loadProducts();
     } catch (err) {
       setError(
@@ -101,11 +143,72 @@ export default function Inventory() {
     }
   };
 
+  const handleSupplierChange = (productId, supplierId) => {
+    setSelectedSuppliers((prev) => ({
+      ...prev,
+      [productId]: supplierId,
+    }));
+  };
+
+  const handleAssignSupplier = async (product) => {
+    if (!isAdmin) return;
+
+    const productId = product._id;
+    const supplierId = selectedSuppliers[productId] || "";
+
+    setError("");
+    setSuccess("");
+    setSavingSupplier(productId);
+
+    try {
+      const res = await api.put(`/inventory/${productId}`, {
+        supplier: supplierId || null,
+      });
+
+      const updatedProduct = res.data?.data;
+
+      if (updatedProduct) {
+        setProducts((prev) =>
+          prev.map((p) =>
+            p._id === productId ? updatedProduct : p
+          )
+        );
+
+        setSelectedSuppliers((prev) => ({
+          ...prev,
+          [productId]:
+            typeof updatedProduct.supplier === "object"
+              ? updatedProduct.supplier?._id || ""
+              : updatedProduct.supplier || "",
+        }));
+      } else {
+        await loadProducts();
+      }
+
+      const selectedSupplier = suppliers.find(
+        (s) => s._id === supplierId
+      );
+
+      setSuccess(
+        supplierId
+          ? `${selectedSupplier?.name || "Supplier"} assigned to ${product.name} successfully.`
+          : `Supplier removed from ${product.name}.`
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Supplier assign cheyyadam fail ayyindi."
+      );
+    } finally {
+      setSavingSupplier("");
+    }
+  };
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return products.filter((p) =>
-      `${p.name ?? ""} ${p.sku ?? ""} ${p.category ?? ""}`
+      `${p.name ?? ""} ${p.sku ?? ""} ${p.category ?? ""} ${p.supplierName ?? ""} ${typeof p.supplier === "object" ? p.supplier?.name ?? "" : ""}`
         .toLowerCase()
         .includes(term)
     );
@@ -114,6 +217,7 @@ export default function Inventory() {
   const lowStockCount = products.filter((p) => {
     const stock = Number(p.currentStock ?? p.stock ?? 0);
     const reorderLevel = Number(p.reorderLevel ?? 10);
+
     return stock <= reorderLevel;
   }).length;
 
@@ -126,7 +230,7 @@ export default function Inventory() {
   }, 0);
 
   const formatMoney = (value) =>
-    `₹${Number(value).toLocaleString("en-IN", {
+    `₹${Number(value || 0).toLocaleString("en-IN", {
       maximumFractionDigits: 2,
     })}`;
 
@@ -158,7 +262,7 @@ export default function Inventory() {
     <div className="min-h-screen bg-[#eaf3ff] p-4 text-slate-800 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Dark navy Inventory Header */}
+        {/* Inventory Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d6ad45] bg-[#071b42] p-6 shadow-lg">
           <div>
             <h1 className="text-2xl font-bold text-white sm:text-3xl">
@@ -166,14 +270,17 @@ export default function Inventory() {
             </h1>
 
             <p className="mt-2 text-sm text-blue-200">
-              Products database nunchi inventory ni manage cheyyi.
+              View and manage your company inventory.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={loadProducts}
+              onClick={() => {
+                loadProducts();
+                loadSuppliers();
+              }}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-lg border border-[#d6ad45] bg-[#102c59] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#193b70] disabled:opacity-50"
             >
@@ -184,18 +291,20 @@ export default function Inventory() {
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowForm((prev) => !prev);
-                setError("");
-                setSuccess("");
-              }}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#d6ad45] bg-[#e5b94c] px-4 py-3 text-sm font-bold text-[#142447] transition hover:bg-[#f0ca69]"
-            >
-              {showForm ? <X size={18} /> : <Plus size={18} />}
-              {showForm ? "Cancel" : "Add Product"}
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm((prev) => !prev);
+                  setError("");
+                  setSuccess("");
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#d6ad45] bg-[#e5b94c] px-4 py-3 text-sm font-bold text-[#142447] transition hover:bg-[#f0ca69]"
+              >
+                {showForm ? <X size={18} /> : <Plus size={18} />}
+                {showForm ? "Cancel" : "Add Product"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -219,7 +328,8 @@ export default function Inventory() {
           </div>
         )}
 
-        {showForm && (
+        {/* Add Product Form */}
+        {isAdmin && showForm && (
           <form
             onSubmit={handleAdd}
             className="rounded-xl border border-[#d6ad45] bg-white p-5 shadow-sm sm:p-6"
@@ -238,13 +348,18 @@ export default function Inventory() {
                   label: "Current Stock",
                   type: "number",
                 },
-                { key: "unitPrice", label: "Unit Price (₹)", type: "number" },
+                {
+                  key: "unitPrice",
+                  label: "Unit Price (₹)",
+                  type: "number",
+                },
               ].map(({ key, label, type }) => (
                 <label
                   key={key}
                   className="text-sm font-medium text-slate-700"
                 >
                   {label}
+
                   <input
                     required={key !== "category"}
                     type={type}
@@ -276,7 +391,7 @@ export default function Inventory() {
           </form>
         )}
 
-        {/* Summary cards */}
+        {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Total Products"
@@ -306,7 +421,7 @@ export default function Inventory() {
             />
 
             <input
-              placeholder="Search product name, SKU or category..."
+              placeholder="Search product name, SKU, category or supplier..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-lg border border-[#d6ad45] py-3 pl-10 pr-4 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -318,7 +433,7 @@ export default function Inventory() {
           </p>
         </div>
 
-        {/* Product Inventory table */}
+        {/* Product Inventory Table */}
         <div className="overflow-hidden rounded-xl border border-[#d6ad45] bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#d6ad45] p-5">
             <h2 className="font-semibold text-slate-800">
@@ -340,6 +455,8 @@ export default function Inventory() {
                   <th className="p-4">Stock</th>
                   <th className="p-4">Unit Price</th>
                   <th className="p-4">Stock Status</th>
+                  <th className="p-4">Supplier</th>
+                  {isAdmin && <th className="p-4">Action</th>}
                 </tr>
               </thead>
 
@@ -347,7 +464,7 @@ export default function Inventory() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={isAdmin ? 8 : 7}
                       className="p-10 text-center text-slate-500"
                     >
                       <span className="inline-flex items-center gap-2">
@@ -362,7 +479,7 @@ export default function Inventory() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={isAdmin ? 8 : 7}
                       className="p-10 text-center text-slate-500"
                     >
                       {search
@@ -373,6 +490,10 @@ export default function Inventory() {
                 ) : (
                   filtered.map((p) => {
                     const status = stockStatus(p);
+                    const supplierName =
+                      typeof p.supplier === "object"
+                        ? p.supplier?.name
+                        : p.supplierName;
 
                     return (
                       <tr
@@ -380,7 +501,7 @@ export default function Inventory() {
                         className="border-t border-[#d6ad45] hover:bg-blue-50"
                       >
                         <td className="p-4 font-medium text-slate-800">
-                          {p.name || "-"}
+                          {p.name || p.productName || "-"}
                         </td>
 
                         <td className="p-4">{p.sku || "-"}</td>
@@ -404,6 +525,57 @@ export default function Inventory() {
                             {status.label}
                           </span>
                         </td>
+
+                        <td className="p-4">
+                          {isAdmin ? (
+                            <select
+                              value={selectedSuppliers[p._id] ?? ""}
+                              onChange={(e) =>
+                                handleSupplierChange(
+                                  p._id,
+                                  e.target.value
+                                )
+                              }
+                              className="min-w-40 rounded-lg border border-[#d6ad45] bg-white px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            >
+                              <option value="">No Supplier</option>
+
+                              {suppliers.map((s) => (
+                                <option key={s._id} value={s._id}>
+                                  {s.name} {s.supplierId ? `(${s.supplierId})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span>
+                              {supplierName || "Not Assigned"}
+                            </span>
+                          )}
+                        </td>
+
+                        {isAdmin && (
+                          <td className="p-4">
+                            <button
+                              type="button"
+                              onClick={() => handleAssignSupplier(p)}
+                              disabled={savingSupplier === p._id}
+                              className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-800 disabled:opacity-50"
+                            >
+                              {savingSupplier === p._id ? (
+                                <LoaderCircle
+                                  size={15}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Save size={15} />
+                              )}
+
+                              {savingSupplier === p._id
+                                ? "Saving..."
+                                : "Save"}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })

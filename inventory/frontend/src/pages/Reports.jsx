@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   FileText,
@@ -11,16 +10,20 @@ import {
   Download,
 } from "lucide-react";
 import api from "../services/api";
-import DashboardLayout from "../layouts/DashboardLayout";
+import { useAuth } from "../context/AuthContext";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function Reports() {
+  const { role } = useAuth();
+
   const [inventory, setInventory] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const isAdmin = role?.toLowerCase() === "admin";
 
   const loadReports = async () => {
     setLoading(true);
@@ -32,32 +35,46 @@ export default function Reports() {
         api.get("/sales"),
       ]);
 
-      const inventoryResult = inventoryResponse.data;
-      const salesResult = salesResponse.data;
+      const getList = (result, keys) => {
+        const payload = result?.data ?? result;
 
-      const inventoryList = Array.isArray(inventoryResult)
-        ? inventoryResult
-        : inventoryResult.data || inventoryResult.products || [];
+        if (Array.isArray(payload)) return payload;
 
-      const salesList = Array.isArray(salesResult)
-        ? salesResult
-        : salesResult.data || salesResult.sales || [];
+        for (const key of keys) {
+          if (Array.isArray(payload?.[key])) {
+            return payload[key];
+          }
+        }
 
-      setInventory(inventoryList);
-      setSales(salesList);
+        return [];
+      };
+
+      setInventory(
+        getList(inventoryResponse.data, ["products", "inventory"])
+      );
+
+      setSales(
+        getList(salesResponse.data, ["sales", "records"])
+      );
     } catch (err) {
       setError(
         err.response?.data?.message ||
           "Unable to load reports. Please check the backend connection."
       );
+      setInventory([]);
+      setSales([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadReports();
-  }, []);
+    if (isAdmin) {
+      loadReports();
+    } else {
+      setLoading(false);
+    }
+  }, [isAdmin]);
 
   const totalProducts = inventory.length;
 
@@ -90,7 +107,7 @@ export default function Reports() {
   );
 
   const formatCurrency = (value) =>
-    `₹${Number(value).toLocaleString("en-IN", {
+    `₹${Number(value || 0).toLocaleString("en-IN", {
       maximumFractionDigits: 2,
     })}`;
 
@@ -104,10 +121,16 @@ export default function Reports() {
 
   const getSaleDate = (sale) => {
     const date = sale.saleDate || sale.createdAt;
-    return date ? new Date(date).toLocaleDateString("en-IN") : "—";
+
+    if (!date) return "—";
+
+    const parsedDate = new Date(date);
+
+    return Number.isNaN(parsedDate.getTime())
+      ? "—"
+      : parsedDate.toLocaleDateString("en-IN");
   };
 
-  // Download Excel report
   const downloadExcel = () => {
     const workbook = XLSX.utils.book_new();
 
@@ -163,7 +186,6 @@ export default function Reports() {
     XLSX.writeFile(workbook, "Inventory_Report.xlsx");
   };
 
-  // Download PDF report
   const downloadPDF = () => {
     const doc = new jsPDF();
 
@@ -242,7 +264,6 @@ export default function Reports() {
       icon: Package,
       iconColor: "text-blue-600",
       iconBg: "bg-blue-100",
-      border: "border-[#d6ad45]",
     },
     {
       title: "Units in Stock",
@@ -250,7 +271,6 @@ export default function Reports() {
       icon: Package,
       iconColor: "text-violet-600",
       iconBg: "bg-violet-100",
-      border: "border-[#d6ad45]",
     },
     {
       title: "Units Sold",
@@ -258,7 +278,6 @@ export default function Reports() {
       icon: TrendingUp,
       iconColor: "text-emerald-600",
       iconBg: "bg-emerald-100",
-      border: "border-[#d6ad45]",
     },
     {
       title: "Total Sales Value",
@@ -266,258 +285,254 @@ export default function Reports() {
       icon: IndianRupee,
       iconColor: "text-orange-600",
       iconBg: "bg-orange-100",
-      border: "border-[#d6ad45]",
     },
   ];
 
+  if (!isAdmin) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+        You do not have permission to access Reports.
+      </div>
+    );
+  }
+
   return (
-    <DashboardLayout title="Reports">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Page heading */}
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-md">
-              <FileText size={25} />
-            </div>
-
-            <div>
-              <h1 className="text-2xl font-bold text-[#142447] md:text-3xl">
-                Inventory Reports
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Review inventory levels, sales performance and low-stock
-                products.
-              </p>
-            </div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-md">
+            <FileText size={25} />
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={loadReports}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw
-                size={18}
-                className={loading ? "animate-spin" : ""}
-              />
-              Refresh Reports
-            </button>
-
-            <button
-              onClick={downloadExcel}
-              disabled={loading || !!error}
-              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download size={18} />
-              Download Excel
-            </button>
-
-            <button
-              onClick={downloadPDF}
-              disabled={loading || !!error}
-              className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download size={18} />
-              Download PDF
-            </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[#142447] md:text-3xl">
+              Inventory Reports
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Review inventory levels, sales performance and low-stock
+              products.
+            </p>
           </div>
         </div>
 
-        {/* Error message */}
-        {error && (
-          <div
-            role="alert"
-            className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700"
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={loadReports}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <AlertCircle size={20} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="font-semibold">Reports Error</p>
-              <p className="mt-1 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="rounded-2xl border border-[#d6ad45] bg-white p-12 text-center text-slate-500 shadow-sm">
             <RefreshCw
-              size={32}
-              className="mx-auto mb-3 animate-spin text-blue-600"
+              size={18}
+              className={loading ? "animate-spin" : ""}
             />
-            <p className="font-medium">Loading report data...</p>
+            Refresh Reports
+          </button>
+
+          <button
+            onClick={downloadExcel}
+            disabled={loading || !!error}
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={18} />
+            Download Excel
+          </button>
+
+          <button
+            onClick={downloadPDF}
+            disabled={loading || !!error}
+            className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={18} />
+            Download PDF
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700"
+        >
+          <AlertCircle size={20} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Reports Error</p>
+            <p className="mt-1 text-sm">{error}</p>
           </div>
-        ) : (
-          <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {summaryCards.map((card) => {
-                const Icon = card.icon;
+        </div>
+      )}
 
-                return (
-                  <div
-                    key={card.title}
-                    className={`rounded-2xl border ${card.border} bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-500">
-                          {card.title}
-                        </p>
-                        <p className="mt-3 break-words text-2xl font-bold text-[#142447]">
-                          {card.value}
-                        </p>
-                      </div>
+      {loading ? (
+        <div className="rounded-2xl border border-[#d6ad45] bg-white p-12 text-center text-slate-500 shadow-sm">
+          <RefreshCw
+            size={32}
+            className="mx-auto mb-3 animate-spin text-blue-600"
+          />
+          <p className="font-medium">Loading report data...</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => {
+              const Icon = card.icon;
 
-                      <div
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${card.iconBg} ${card.iconColor}`}
-                      >
-                        <Icon size={25} />
-                      </div>
+              return (
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-[#d6ad45] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-500">
+                        {card.title}
+                      </p>
+                      <p className="mt-3 break-words text-2xl font-bold text-[#142447]">
+                        {card.value}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${card.iconBg} ${card.iconColor}`}
+                    >
+                      <Icon size={25} />
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
+          </div>
+
+          <section className="overflow-hidden rounded-2xl border border-[#d6ad45] bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-[#d6ad45] bg-gradient-to-r from-orange-50 to-white p-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                <AlertTriangle size={23} />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-[#142447]">
+                  Low Stock Report
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Products at or below their reorder level.
+                </p>
+              </div>
+
+              <span className="ml-auto rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-700">
+                {lowStockProducts.length}
+              </span>
             </div>
 
-            {/* Low stock report */}
-            <section className="overflow-hidden rounded-2xl border border-[#d6ad45] bg-white shadow-sm">
-              <div className="flex items-center gap-3 border-b border-[#d6ad45] bg-gradient-to-r from-orange-50 to-white p-5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
-                  <AlertTriangle size={23} />
-                </div>
+            {lowStockProducts.length === 0 ? (
+              <div className="p-10 text-center">
+                <Package
+                  size={36}
+                  className="mx-auto mb-3 text-emerald-500"
+                />
+                <p className="font-semibold text-slate-700">
+                  No low-stock products found
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#EEF1FF] text-slate-600">
+                    <tr>
+                      <th className="px-5 py-4 font-semibold">Product</th>
+                      <th className="px-5 py-4 font-semibold">SKU</th>
+                      <th className="px-5 py-4 font-semibold">Current Stock</th>
+                      <th className="px-5 py-4 font-semibold">Reorder Level</th>
+                    </tr>
+                  </thead>
 
-                <div>
-                  <h2 className="font-bold text-[#142447]">
-                    Low Stock Report
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Products at or below their reorder level.
-                  </p>
-                </div>
+                  <tbody className="divide-y divide-indigo-50">
+                    {lowStockProducts.map((product, index) => (
+                      <tr
+                        key={product._id || product.sku || index}
+                        className="transition hover:bg-indigo-50/50"
+                      >
+                        <td className="px-5 py-4 font-semibold text-slate-800">
+                          {product.name || product.productName || "Product"}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {product.sku || "—"}
+                        </td>
+                        <td className="px-5 py-4 font-bold text-orange-600">
+                          {product.currentStock ?? product.stock ?? 0}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {product.reorderLevel ?? 10}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
-                <span className="ml-auto rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-700">
-                  {lowStockProducts.length}
-                </span>
+          <section className="overflow-hidden rounded-2xl border border-[#d6ad45] bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-[#d6ad45] bg-gradient-to-r from-blue-50 to-white p-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                <TrendingUp size={23} />
               </div>
 
-              {lowStockProducts.length === 0 ? (
-                <div className="p-10 text-center">
-                  <Package
-                    size={36}
-                    className="mx-auto mb-3 text-emerald-500"
-                  />
-                  <p className="font-semibold text-slate-700">
-                    No low-stock products found
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-[#EEF1FF] text-slate-600">
-                      <tr>
-                        <th className="px-5 py-4 font-semibold">Product</th>
-                        <th className="px-5 py-4 font-semibold">SKU</th>
-                        <th className="px-5 py-4 font-semibold">
-                          Current Stock
-                        </th>
-                        <th className="px-5 py-4 font-semibold">
-                          Reorder Level
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-indigo-50">
-                      {lowStockProducts.map((product, index) => (
-                        <tr
-                          key={product._id || product.sku || index}
-                          className="transition hover:bg-indigo-50/50"
-                        >
-                          <td className="px-5 py-4 font-semibold text-slate-800">
-                            {product.name || product.productName || "Product"}
-                          </td>
-                          <td className="px-5 py-4 text-slate-600">
-                            {product.sku || "—"}
-                          </td>
-                          <td className="px-5 py-4 font-bold text-orange-600">
-                            {product.currentStock ?? product.stock ?? 0}
-                          </td>
-                          <td className="px-5 py-4 text-slate-600">
-                            {product.reorderLevel ?? 10}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            {/* Recent sales */}
-            <section className="overflow-hidden rounded-2xl border border-[#d6ad45] bg-white shadow-sm">
-              <div className="flex items-center gap-3 border-b border-[#d6ad45] bg-gradient-to-r from-blue-50 to-white p-5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                  <TrendingUp size={23} />
-                </div>
-
-                <div>
-                  <h2 className="font-bold text-[#142447]">Recent Sales</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Sales records retrieved from your backend.
-                  </p>
-                </div>
+              <div>
+                <h2 className="font-bold text-[#142447]">Recent Sales</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Sales records retrieved from your backend.
+                </p>
               </div>
+            </div>
 
-              {sales.length === 0 ? (
-                <div className="p-10 text-center">
-                  <TrendingUp
-                    size={36}
-                    className="mx-auto mb-3 text-blue-500"
-                  />
-                  <p className="font-semibold text-slate-700">
-                    No sales records found
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-[#EEF1FF] text-slate-600">
-                      <tr>
-                        <th className="px-5 py-4 font-semibold">Product</th>
-                        <th className="px-5 py-4 font-semibold">Quantity</th>
-                        <th className="px-5 py-4 font-semibold">Unit Price</th>
-                        <th className="px-5 py-4 font-semibold">Sale Date</th>
+            {sales.length === 0 ? (
+              <div className="p-10 text-center">
+                <TrendingUp
+                  size={36}
+                  className="mx-auto mb-3 text-blue-500"
+                />
+                <p className="font-semibold text-slate-700">
+                  No sales records found
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#EEF1FF] text-slate-600">
+                    <tr>
+                      <th className="px-5 py-4 font-semibold">Product</th>
+                      <th className="px-5 py-4 font-semibold">Quantity</th>
+                      <th className="px-5 py-4 font-semibold">Unit Price</th>
+                      <th className="px-5 py-4 font-semibold">Sale Date</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-indigo-50">
+                    {sales.slice(0, 10).map((sale, index) => (
+                      <tr
+                        key={sale._id || index}
+                        className="transition hover:bg-indigo-50/50"
+                      >
+                        <td className="px-5 py-4 font-semibold text-slate-800">
+                          {getProductName(sale)}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {sale.quantity ?? "—"}
+                        </td>
+                        <td className="px-5 py-4 font-medium text-emerald-700">
+                          {formatCurrency(sale.unitPrice ?? 0)}
+                        </td>
+                        <td className="px-5 py-4 text-slate-500">
+                          {getSaleDate(sale)}
+                        </td>
                       </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-indigo-50">
-                      {sales.slice(0, 10).map((sale, index) => (
-                        <tr
-                          key={sale._id || index}
-                          className="transition hover:bg-indigo-50/50"
-                        >
-                          <td className="px-5 py-4 font-semibold text-slate-800">
-                            {getProductName(sale)}
-                          </td>
-                          <td className="px-5 py-4 text-slate-600">
-                            {sale.quantity ?? "—"}
-                          </td>
-                          <td className="px-5 py-4 font-medium text-emerald-700">
-                            {formatCurrency(sale.unitPrice ?? 0)}
-                          </td>
-                          <td className="px-5 py-4 text-slate-500">
-                            {getSaleDate(sale)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </DashboardLayout>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
   );
 }

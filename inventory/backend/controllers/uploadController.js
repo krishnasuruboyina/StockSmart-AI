@@ -1,11 +1,32 @@
-
 const XLSX = require("xlsx");
+
 const Product = require("../models/product");
+const Supplier = require("../models/supplier");
+const UploadHistory = require("../models/uploadHistory");
 
 const MAX_ROWS = 5000;
 
 exports.uploadInventoryFile = async (req, res) => {
+  let history = null;
+
   try {
+    // Admin-only access
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only administrators can upload inventory files",
+      });
+    }
+
+    if (!req.user.company) {
+      return res.status(400).json({
+        success: false,
+        message: "Company information is missing",
+      });
+    }
+
+    const companyId = req.user.company._id || req.user.company;
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -13,7 +34,6 @@ exports.uploadInventoryFile = async (req, res) => {
       });
     }
 
-    // Verify file extension
     const fileName = req.file.originalname.toLowerCase();
 
     if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx")) {
@@ -23,7 +43,18 @@ exports.uploadInventoryFile = async (req, res) => {
       });
     }
 
-    // Parse uploaded file
+    const fileType = fileName.endsWith(".csv") ? "CSV" : "XLSX";
+
+    // Create upload history
+    history = await UploadHistory.create({
+      company: companyId,
+      uploadedBy: req.user._id,
+      fileName: req.file.originalname,
+      fileType,
+      status: "Processing",
+    });
+
+    // Parse file
     const workbook = XLSX.read(req.file.buffer, {
       type: "buffer",
       cellDates: false,
@@ -32,10 +63,7 @@ exports.uploadInventoryFile = async (req, res) => {
     const sheetName = workbook.SheetNames[0];
 
     if (!sheetName) {
-      return res.status(400).json({
-        success: false,
-        message: "The uploaded file has no worksheet",
-      });
+      throw new Error("The uploaded file has no worksheet");
     }
 
     const worksheet = workbook.Sheets[sheetName];
@@ -46,17 +74,11 @@ exports.uploadInventoryFile = async (req, res) => {
     });
 
     if (rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "The uploaded file contains no data",
-      });
+      throw new Error("The uploaded file contains no data");
     }
 
     if (rows.length > MAX_ROWS) {
-      return res.status(400).json({
-        success: false,
-        message: `Maximum ${MAX_ROWS} rows are allowed per upload`,
-      });
+      throw new Error(`Maximum ${MAX_ROWS} rows are allowed per upload`);
     }
 
     const requiredFields = [
@@ -66,30 +88,39 @@ exports.uploadInventoryFile = async (req, res) => {
       "unitPrice",
     ];
 
-    // Validate and normalize each product
     const products = [];
+    const errors = [];
+
+    // Get suppliers belonging only to this company
+    const suppliers = await Supplier.find({
+      company: companyId,
+      isActive: true,
+    });
 
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
       const rowNumber = index + 2;
 
-      for (const field of requiredFields) {
-        const value = row[field];
+      let rowError = null;
 
+      for (const field of requiredFields) {
         if (
-          value === undefined ||
-          value === null ||
-          String(value).trim() === ""
+          row[field] === undefined ||
+          row[field] === null ||
+          String(row[field]).trim() === ""
         ) {
-          return res.status(400).json({
-            success: false,
-            message: `Row ${rowNumber}: Missing ${field}`,
-          });
+          rowError = `Row ${rowNumber}: Missing ${field}`;
+          break;
         }
       }
 
+      if (rowError) {
+        errors.push(rowError);
+        continue;
+      }
+
       const name = String(row.name).trim();
-      const sku = String(row.sku).trim();
+      const sku = String(row.sku).trim().toUpperCase();
 
       const currentStock = Number(row.currentStock);
       const unitPrice = Number(row.unitPrice);
@@ -101,30 +132,47 @@ exports.uploadInventoryFile = async (req, res) => {
           ? 10
           : Number(row.reorderLevel);
 
-      if (!name || !sku) {
-        return res.status(400).json({
-          success: false,
-          message: `Row ${rowNumber}: Name and SKU cannot be empty`,
-        });
-      }
-
       if (
-        !Number.isFinite(currentStock) ||
+        !name ||
+        !sku ||
         !Number.isInteger(currentStock) ||
         currentStock < 0 ||
         !Number.isFinite(unitPrice) ||
         unitPrice < 0 ||
-        !Number.isFinite(reorderLevel) ||
         !Number.isInteger(reorderLevel) ||
         reorderLevel < 0
       ) {
-        return res.status(400).json({
-          success: false,
-          message: `Row ${rowNumber}: Invalid stock, price, or reorder level`,
-        });
+        errors.push(
+          `Row ${rowNumber}: Invalid product name, SKU, stock, price, or reorder level`
+        );
+        continue;
+      }
+
+      // Resolve supplier within this company
+      let supplier = null;
+      let supplierName = "";
+
+      if (row.supplier && String(row.supplier).trim()) {
+        const supplierValue = String(row.supplier).trim();
+
+        supplier = suppliers.find(
+          (item) =>
+            item.supplierId.toLowerCase() === supplierValue.toLowerCase() ||
+            item.name.toLowerCase() === supplierValue.toLowerCase()
+        );
+
+        if (!supplier) {
+          errors.push(
+            `Row ${rowNumber}: Supplier "${supplierValue}" was not found in your company`
+          );
+          continue;
+        }
+
+        supplierName = supplier.name;
       }
 
       products.push({
+        company: companyId,
         name,
         sku,
         category: row.category
@@ -133,62 +181,88 @@ exports.uploadInventoryFile = async (req, res) => {
         currentStock,
         reorderLevel,
         unitPrice,
-        supplier: row.supplier
-          ? String(row.supplier).trim()
-          : "",
+        supplier: supplier ? supplier._id : null,
+        supplierName,
       });
     }
 
-    // Detect duplicate SKUs within the uploaded file
-    const skus = products.map((product) => product.sku);
-    const uniqueSkus = new Set(skus);
+    // Reject duplicate SKUs inside the uploaded file
+    const skuList = products.map((product) => product.sku);
+    const uniqueSkus = new Set(skuList);
 
-    if (uniqueSkus.size !== skus.length) {
-      return res.status(400).json({
-        success: false,
-        message: "Duplicate SKU found in the uploaded file",
-      });
+    if (uniqueSkus.size !== skuList.length) {
+      errors.push("Duplicate SKU found inside the uploaded file");
     }
 
-    // Check for existing products
+    // Check duplicate SKUs only within this company
     const existingProducts = await Product.find({
-      sku: { $in: skus },
+      company: companyId,
+      sku: { $in: skuList },
     }).select("sku");
 
     if (existingProducts.length > 0) {
-      return res.status(409).json({
+      errors.push(
+        `These SKUs already exist: ${existingProducts
+          .map((product) => product.sku)
+          .join(", ")}`
+      );
+    }
+
+    // Do not insert invalid or partially valid files
+    if (errors.length > 0) {
+      history.status = "Failed";
+      history.totalRecords = rows.length;
+      history.successfulRecords = 0;
+      history.failedRecords = rows.length;
+      history.errorMessages = errors;
+      await history.save();
+
+      return res.status(400).json({
         success: false,
-        message: "Some SKUs already exist",
-        duplicateSkus: existingProducts.map((product) => product.sku),
+        message: "Upload failed. Please correct the file and try again.",
+        errors,
       });
     }
 
-    // Insert only after all rows pass validation
+    // Insert products
     const savedProducts = await Product.insertMany(products, {
       ordered: true,
     });
+
+    history.status = "Completed";
+    history.totalRecords = rows.length;
+    history.successfulRecords = savedProducts.length;
+    history.failedRecords = 0;
+    await history.save();
 
     return res.status(201).json({
       success: true,
       message: "Inventory file imported successfully",
       count: savedProducts.length,
+      uploadHistoryId: history._id,
       data: savedProducts,
     });
   } catch (error) {
     console.error("Inventory upload error:", error.message);
 
-    // Duplicate-key conflict
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "A product with this SKU already exists",
+    if (history) {
+      history.status = "Failed";
+      history.errorMessages = [error.message];
+      await history.save().catch((saveError) => {
+        console.error("Upload history save error:", saveError.message);
       });
     }
 
-    // Database or unexpected server errors
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "A product with this SKU already exists in your company",
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      message: "Failed to import inventory file",
+      message: error.message || "Failed to import inventory file",
     });
   }
 };

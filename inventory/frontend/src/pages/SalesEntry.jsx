@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ShoppingCart,
@@ -12,7 +11,13 @@ import {
 } from "lucide-react";
 import api from "../services/api";
 
-const today = new Date().toISOString().slice(0, 10);
+const getLocalDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -25,7 +30,7 @@ export default function SalesEntry() {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
-  const [saleDate, setSaleDate] = useState(today);
+  const [saleDate, setSaleDate] = useState(getLocalDate());
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,7 +88,8 @@ export default function SalesEntry() {
 
       setProductId((current) => {
         const stillExists = inventory.some(
-          (product) => String(product._id ?? product.id) === current
+          (product) =>
+            String(product._id ?? product.id) === current
         );
 
         if (stillExists) return current;
@@ -115,21 +121,34 @@ export default function SalesEntry() {
   useEffect(() => {
     if (selectedProduct) {
       setUnitPrice(
-        String(selectedProduct.unitPrice ?? selectedProduct.price ?? 0)
+        String(
+          selectedProduct.unitPrice ??
+            selectedProduct.price ??
+            0
+        )
       );
     } else {
       setUnitPrice("");
     }
-  }, [productId, selectedProduct?._id, selectedProduct?.unitPrice]);
+  }, [
+    productId,
+    selectedProduct?._id,
+    selectedProduct?.unitPrice,
+    selectedProduct?.price,
+  ]);
 
   const totalUnitsSold = useMemo(
     () =>
-      sales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0),
+      sales.reduce(
+        (sum, sale) => sum + Number(sale.quantity || 0),
+        0
+      ),
     [sales]
   );
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     setError("");
     setMessage("");
     setRemainingStock(null);
@@ -148,7 +167,9 @@ export default function SalesEntry() {
     }
 
     if (qty > currentStock) {
-      setError(`Insufficient stock. Available stock: ${currentStock}.`);
+      setError(
+        `Insufficient stock. Available stock: ${currentStock}.`
+      );
       return;
     }
 
@@ -169,17 +190,26 @@ export default function SalesEntry() {
         product: productId,
         quantity: qty,
         unitPrice: price,
-        saleDate: new Date(`${saleDate}T12:00:00`).toISOString(),
+        saleDate: new Date(
+          `${saleDate}T12:00:00`
+        ).toISOString(),
       });
 
       if (response.data?.success !== true) {
         throw new Error(
-          response.data?.message || "Sale could not be recorded."
+          response.data?.message ||
+            "Sale could not be recorded."
         );
       }
 
-      setMessage(response.data.message || "Sale recorded successfully.");
-      setRemainingStock(response.data.remainingStock ?? null);
+      setMessage(
+        response.data.message || "Sale recorded successfully."
+      );
+
+      setRemainingStock(
+        response.data.remainingStock ?? null
+      );
+
       setQuantity("1");
 
       await loadData();
@@ -198,7 +228,7 @@ export default function SalesEntry() {
     <div className="min-h-screen bg-[#eaf3ff] p-4 text-slate-800 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* Dark navy header with gold border */}
+        {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d6ad45] bg-[#071b42] p-6 shadow-lg">
           <div>
             <h1 className="text-2xl font-bold text-white sm:text-3xl">
@@ -224,7 +254,7 @@ export default function SalesEntry() {
           </button>
         </header>
 
-        {/* Error message */}
+        {/* Error */}
         {error && (
           <div
             role="alert"
@@ -235,7 +265,7 @@ export default function SalesEntry() {
           </div>
         )}
 
-        {/* Success message */}
+        {/* Success */}
         {message && (
           <div
             role="status"
@@ -248,13 +278,14 @@ export default function SalesEntry() {
 
             {remainingStock !== null && (
               <p className="mt-2">
-                Remaining stock: <strong>{remainingStock} units</strong>
+                Remaining stock:{" "}
+                <strong>{remainingStock} units</strong>
               </p>
             )}
           </div>
         )}
 
-        {/* Summary cards */}
+        {/* Summary Cards */}
         <section className="grid gap-4 sm:grid-cols-2">
           <div className="flex items-center gap-4 rounded-xl border border-[#d6ad45] bg-[#f8fbff] p-5 shadow-sm">
             <div className="rounded-xl bg-blue-50 p-3 text-blue-600">
@@ -262,7 +293,9 @@ export default function SalesEntry() {
             </div>
 
             <div>
-              <p className="text-sm text-slate-500">Available Products</p>
+              <p className="text-sm text-slate-500">
+                Available Products
+              </p>
               <p className="mt-1 text-2xl font-bold text-slate-900">
                 {products.length}
               </p>
@@ -275,7 +308,9 @@ export default function SalesEntry() {
             </div>
 
             <div>
-              <p className="text-sm text-slate-500">Total Units Sold</p>
+              <p className="text-sm text-slate-500">
+                Total Units Sold
+              </p>
               <p className="mt-1 text-2xl font-bold text-slate-900">
                 {totalUnitsSold.toLocaleString("en-IN")}
               </p>
@@ -283,7 +318,7 @@ export default function SalesEntry() {
           </div>
         </section>
 
-        {/* Record a sale form */}
+        {/* Record Sale Form */}
         <section className="rounded-xl border border-[#d6ad45] bg-[#f8fbff] p-5 shadow-sm sm:p-7">
           <h2 className="mb-5 text-lg font-semibold text-slate-900">
             Record a Sale
@@ -307,7 +342,9 @@ export default function SalesEntry() {
                 <select
                   id="sale-product"
                   value={productId}
-                  onChange={(event) => setProductId(event.target.value)}
+                  onChange={(event) =>
+                    setProductId(event.target.value)
+                  }
                   required
                   className="w-full rounded-lg border border-[#d6ad45] bg-white px-3 py-3 outline-none focus:border-blue-500"
                 >
@@ -321,7 +358,8 @@ export default function SalesEntry() {
 
                     return (
                       <option key={id} value={id}>
-                        {product.name} ({product.sku || "No SKU"}) — Stock: {stock}
+                        {product.name || product.productName || "Unnamed Product"}{" "}
+                        ({product.sku || "No SKU"}) — Stock: {stock}
                       </option>
                     );
                   })}
@@ -331,14 +369,18 @@ export default function SalesEntry() {
               {selectedProduct && (
                 <div className="grid gap-3 rounded-lg border border-[#d6ad45] bg-[#eaf3ff] p-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-slate-500">Current Stock</p>
+                    <p className="text-xs text-slate-500">
+                      Current Stock
+                    </p>
                     <p className="mt-1 text-lg font-semibold text-slate-900">
                       {currentStock} units
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">SKU</p>
+                    <p className="text-xs text-slate-500">
+                      SKU
+                    </p>
                     <p className="mt-1 font-semibold text-slate-900">
                       {selectedProduct.sku || "—"}
                     </p>
@@ -363,7 +405,9 @@ export default function SalesEntry() {
                     step="1"
                     required
                     value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
+                    onChange={(event) =>
+                      setQuantity(event.target.value)
+                    }
                     className="w-full rounded-lg border border-[#d6ad45] bg-white px-3 py-3 outline-none focus:border-blue-500"
                   />
                 </div>
@@ -383,7 +427,9 @@ export default function SalesEntry() {
                     step="0.01"
                     required
                     value={unitPrice}
-                    onChange={(event) => setUnitPrice(event.target.value)}
+                    onChange={(event) =>
+                      setUnitPrice(event.target.value)
+                    }
                     className="w-full rounded-lg border border-[#d6ad45] bg-white px-3 py-3 outline-none focus:border-blue-500"
                   />
                 </div>
@@ -400,10 +446,12 @@ export default function SalesEntry() {
                   <input
                     id="sale-date"
                     type="date"
-                    max={today}
+                    max={getLocalDate()}
                     required
                     value={saleDate}
-                    onChange={(event) => setSaleDate(event.target.value)}
+                    onChange={(event) =>
+                      setSaleDate(event.target.value)
+                    }
                     className="w-full rounded-lg border border-[#d6ad45] bg-white px-3 py-3 outline-none focus:border-blue-500"
                   />
                 </div>
@@ -419,7 +467,10 @@ export default function SalesEntry() {
                   </p>
                 </div>
 
-                <IndianRupee className="text-blue-600" size={28} />
+                <IndianRupee
+                  className="text-blue-600"
+                  size={28}
+                />
               </div>
 
               <button
@@ -433,22 +484,27 @@ export default function SalesEntry() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d6ad45] bg-[#e5b94c] px-5 py-3 font-semibold text-[#142447] transition hover:bg-[#f0ca69] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? (
-                  <LoaderCircle size={19} className="animate-spin" />
+                  <LoaderCircle
+                    size={19}
+                    className="animate-spin"
+                  />
                 ) : (
                   <ShoppingCart size={19} />
                 )}
+
                 {saving ? "Recording Sale..." : "Record Sale"}
               </button>
             </form>
           )}
         </section>
 
-        {/* Recent sales */}
+        {/* Recent Sales */}
         <section className="overflow-hidden rounded-xl border border-[#d6ad45] bg-[#f8fbff] shadow-sm">
           <div className="border-b border-[#d6ad45] p-5">
             <h2 className="text-lg font-semibold text-slate-900">
               Recent Sales
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               Sales history retrieved from the backend.
             </p>
@@ -469,8 +525,13 @@ export default function SalesEntry() {
               <tbody>
                 {sales.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      {loading ? "Loading sales..." : "No sales recorded yet."}
+                    <td
+                      colSpan={5}
+                      className="p-8 text-center text-slate-500"
+                    >
+                      {loading
+                        ? "Loading sales..."
+                        : "No sales recorded yet."}
                     </td>
                   </tr>
                 ) : (
@@ -481,20 +542,28 @@ export default function SalesEntry() {
                     >
                       <td className="whitespace-nowrap p-4">
                         {sale.saleDate
-                          ? new Date(sale.saleDate).toLocaleDateString("en-IN")
+                          ? new Date(
+                              sale.saleDate
+                            ).toLocaleDateString("en-IN")
                           : "—"}
                       </td>
 
                       <td className="p-4 font-medium text-slate-800">
                         {typeof sale.product === "object"
-                          ? sale.product?.name || "Product"
+                          ? sale.product?.name ||
+                            sale.product?.productName ||
+                            "Product"
                           : "Product"}
-                        {typeof sale.product === "object" && sale.product?.sku
+
+                        {typeof sale.product === "object" &&
+                        sale.product?.sku
                           ? ` (${sale.product.sku})`
                           : ""}
                       </td>
 
-                      <td className="p-4">{sale.quantity}</td>
+                      <td className="p-4">
+                        {sale.quantity}
+                      </td>
 
                       <td className="whitespace-nowrap p-4">
                         {money(sale.unitPrice)}
@@ -502,7 +571,8 @@ export default function SalesEntry() {
 
                       <td className="whitespace-nowrap p-4 font-semibold">
                         {money(
-                          Number(sale.quantity) * Number(sale.unitPrice)
+                          Number(sale.quantity) *
+                            Number(sale.unitPrice)
                         )}
                       </td>
                     </tr>

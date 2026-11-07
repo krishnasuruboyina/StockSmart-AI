@@ -1,4 +1,3 @@
-
 const express = require("express");
 const router = express.Router();
 
@@ -9,14 +8,13 @@ const {
   adminMiddleware,
 } = require("../middleware/authMiddleware");
 
-// All supplier routes require a valid JWT token
+// All supplier routes require authentication
 router.use(authMiddleware);
 
-// Authenticated users can view suppliers
-router.get("/", supplierController.getSuppliers);
-router.get("/:id", supplierController.getSupplierById);
+// Admin only - View company suppliers
+router.get("/", adminMiddleware, supplierController.getSuppliers);
 
-// Only admins can modify suppliers
+// Admin only - Manage suppliers
 router.post("/", adminMiddleware, supplierController.createSupplier);
 router.put("/:id", adminMiddleware, supplierController.updateSupplier);
 router.patch("/:id", adminMiddleware, supplierController.updateSupplier);

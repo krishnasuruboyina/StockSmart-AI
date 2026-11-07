@@ -1,294 +1,417 @@
 const Supplier = require("../models/supplier");
+const User = require("../models/user");
+const Company = require("../models/company");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 
-// Get all suppliers
-exports.getSuppliers = async (req, res) => {
-  try {
-    const suppliers = await Supplier.find().sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      count: suppliers.length,
-      data: suppliers
-    });
-  } catch (error) {
-    console.error("Get suppliers error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch suppliers"
-    });
-  }
+// Generate unique Supplier ID (internal use only)
+const generateSupplierId = () => {
+  return "SUP-" + crypto.randomBytes(3).toString("hex").toUpperCase();
 };
 
-// Create supplier
+// ==========================================
+// CREATE SUPPLIER - ADMIN ONLY
+// ==========================================
+
 exports.createSupplier = async (req, res) => {
   try {
-    const { name, email, phone, address, leadTimeDays } = req.body;
-
-    // Validate supplier name
-    if (typeof name !== "string" || !name.trim()) {
-      return res.status(400).json({
+    if (req.user.role !== "admin" || !req.user.company) {
+      return res.status(403).json({
         success: false,
-        message: "Supplier name is required"
+        message: "Only Admin can create suppliers.",
       });
     }
 
-    // Validate email if provided
+    const {
+      name,
+      email,
+      phone,
+      address,
+      leadTimeDays,
+      password,
+    } = req.body;
+
     if (
-      email !== undefined &&
-      email !== "" &&
-      (typeof email !== "string" ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      !name?.trim() ||
+      !email?.trim() ||
+      !password ||
+      !phone?.trim() ||
+      !address?.trim()
     ) {
       return res.status(400).json({
         success: false,
-        message: "Please provide a valid email address"
+        message: "Please provide all supplier details.",
       });
     }
 
-    // Validate lead time
-    if (
-      leadTimeDays !== undefined &&
-      (
-        leadTimeDays === null ||
-        leadTimeDays === "" ||
-        !Number.isInteger(Number(leadTimeDays)) ||
-        Number(leadTimeDays) < 0
-      )
-    ) {
+    if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: "Lead time must be a non-negative whole number"
+        message: "Password must contain at least 8 characters.",
       });
     }
 
-    const supplier = await Supplier.create({
-      name: name.trim(),
-      email: email ? email.trim().toLowerCase() : "",
-      phone: typeof phone === "string" ? phone.trim() : "",
-      address: typeof address === "string" ? address.trim() : "",
-      leadTimeDays:
-        leadTimeDays === undefined ? 7 : Number(leadTimeDays)
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const companyId = req.user.company._id || req.user.company;
+
+    const company = await Company.findOne({
+      _id: companyId,
+      admin: req.user._id,
+      isActive: true,
     });
+
+    if (!company) {
+      return res.status(403).json({
+        success: false,
+        message: "Company access denied.",
+      });
+    }
+
+    // Generate unique Supplier ID inside company
+    let supplierId;
+    let existingSupplier;
+
+    do {
+      supplierId = generateSupplierId();
+
+      existingSupplier = await Supplier.findOne({
+        company: company._id,
+        supplierId,
+      });
+    } while (existingSupplier);
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create supplier profile
+    const supplier = await Supplier.create({
+      company: company._id,
+      name: name.trim(),
+      supplierId,
+      email: normalizedEmail,
+      phone: phone.trim(),
+      address: address.trim(),
+      leadTimeDays: leadTimeDays ?? 7,
+    });
+
+    try {
+      // Create supplier login account using EMAIL
+      const supplierUser = await User.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: "supplier",
+        company: company._id,
+        supplierId,
+        createdBy: req.user._id,
+        isActive: true,
+      });
+
+      supplier.user = supplierUser._id;
+      await supplier.save();
+
+    } catch (accountError) {
+      await Supplier.findByIdAndDelete(supplier._id);
+      throw accountError;
+    }
 
     return res.status(201).json({
       success: true,
-      message: "Supplier created successfully",
-      data: supplier
+      message: "Supplier created successfully.",
+      data: {
+        id: supplier._id,
+        name: supplier.name,
+        supplierId: supplier.supplierId,
+        email: normalizedEmail,
+        phone: supplier.phone,
+        address: supplier.address,
+        leadTimeDays: supplier.leadTimeDays,
+        isActive: supplier.isActive,
+        companyId: company.companyId,
+      },
     });
+
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return res.status(400).json({
+    console.error("Create supplier error:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
         success: false,
-        message: error.message
+        message: "Email or Supplier ID already exists.",
       });
     }
 
-    console.error("Create supplier error:", error.message);
-
     return res.status(500).json({
       success: false,
-      message: "Failed to create supplier"
+      message: "Failed to create supplier.",
     });
   }
 };
 
-// Get supplier by ID
-exports.getSupplierById = async (req, res) => {
+// ==========================================
+// GET SUPPLIERS - COMPANY WISE
+// ==========================================
+
+exports.getSuppliers = async (req, res) => {
   try {
-    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
-      return res.status(400).json({
+    if (req.user.role !== "admin" || !req.user.company) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid supplier ID"
+        message: "Admin access required.",
       });
     }
 
-    const supplier = await Supplier.findById(req.params.id);
+    const companyId = req.user.company._id || req.user.company;
 
-    if (!supplier) {
+    const company = await Company.findOne({
+      _id: companyId,
+      admin: req.user._id,
+      isActive: true,
+    });
+
+    if (!company) {
       return res.status(404).json({
         success: false,
-        message: "Supplier not found"
+        message: "Company not found.",
       });
     }
+
+    const suppliers = await Supplier.find({
+      company: company._id,
+    })
+      .select("-__v")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const supplierList = suppliers.map((supplier) => ({
+      ...supplier,
+      companyId: company.companyId,
+    }));
 
     return res.status(200).json({
       success: true,
-      data: supplier
+      count: supplierList.length,
+      data: supplierList,
     });
+
   } catch (error) {
-    console.error("Get supplier error:", error.message);
+    console.error("Get suppliers error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch supplier"
+      message: "Failed to retrieve suppliers.",
     });
   }
 };
 
-// Update supplier
+// ==========================================
+// UPDATE SUPPLIER - ADMIN ONLY
+// ==========================================
+
 exports.updateSupplier = async (req, res) => {
   try {
-    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
-      return res.status(400).json({
+    if (req.user.role !== "admin" || !req.user.company) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid supplier ID"
+        message: "Admin access required.",
       });
     }
 
-    const allowedFields = [
-      "name",
-      "email",
-      "phone",
-      "address",
-      "leadTimeDays"
-    ];
+    const {
+      name,
+      email,
+      phone,
+      address,
+      leadTimeDays,
+      isActive,
+    } = req.body;
 
-    const updates = {};
+    const companyId = req.user.company._id || req.user.company;
 
-    for (const key of Object.keys(req.body)) {
-      if (!allowedFields.includes(key)) {
-        return res.status(400).json({
-          success: false,
-          message: `Field '${key}' cannot be updated`
-        });
-      }
+    const company = await Company.findOne({
+      _id: companyId,
+      admin: req.user._id,
+      isActive: true,
+    });
 
-      updates[key] = req.body[key];
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
+    if (!company) {
+      return res.status(403).json({
         success: false,
-        message: "Provide at least one field to update"
+        message: "Company access denied.",
       });
     }
 
-    if (
-      "name" in updates &&
-      (typeof updates.name !== "string" || !updates.name.trim())
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Supplier name cannot be empty"
-      });
-    }
-
-    if ("name" in updates) {
-      updates.name = updates.name.trim();
-    }
-
-    if ("email" in updates) {
-      if (
-        typeof updates.email !== "string" ||
-        (updates.email.trim() !== "" &&
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email.trim()))
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "Please provide a valid email address"
-        });
-      }
-
-      updates.email = updates.email.trim().toLowerCase();
-    }
-
-    for (const field of ["phone", "address"]) {
-      if (field in updates) {
-        if (typeof updates[field] !== "string") {
-          return res.status(400).json({
-            success: false,
-            message: `${field} must be text`
-          });
-        }
-
-        updates[field] = updates[field].trim();
-      }
-    }
-
-    if ("leadTimeDays" in updates) {
-      if (
-        updates.leadTimeDays === null ||
-        updates.leadTimeDays === "" ||
-        !Number.isInteger(Number(updates.leadTimeDays)) ||
-        Number(updates.leadTimeDays) < 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "Lead time must be a non-negative whole number"
-        });
-      }
-
-      updates.leadTimeDays = Number(updates.leadTimeDays);
-    }
-
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
+    const supplier = await Supplier.findOne({
+      _id: req.params.id,
+      company: company._id,
+    });
 
     if (!supplier) {
       return res.status(404).json({
         success: false,
-        message: "Supplier not found"
+        message: "Supplier not found.",
       });
+    }
+
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Supplier name cannot be empty.",
+        });
+      }
+
+      supplier.name = name.trim();
+    }
+
+    if (email !== undefined) {
+      supplier.email = email.trim().toLowerCase();
+    }
+
+    if (phone !== undefined) {
+      supplier.phone = phone.trim();
+    }
+
+    if (address !== undefined) {
+      supplier.address = address.trim();
+    }
+
+    if (leadTimeDays !== undefined) {
+      const days = Number(leadTimeDays);
+
+      if (!Number.isFinite(days) || days < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid lead time.",
+        });
+      }
+
+      supplier.leadTimeDays = days;
+    }
+
+    if (isActive !== undefined) {
+      supplier.isActive = isActive;
+    }
+
+    await supplier.save();
+
+    // Sync linked login account
+    if (supplier.user) {
+      const userUpdates = {};
+
+      if (name !== undefined) {
+        userUpdates.name = supplier.name;
+      }
+
+      if (email !== undefined) {
+        userUpdates.email = supplier.email;
+      }
+
+      if (isActive !== undefined) {
+        userUpdates.isActive = isActive;
+      }
+
+      if (Object.keys(userUpdates).length > 0) {
+        await User.updateOne(
+          {
+            _id: supplier.user,
+            company: company._id,
+            role: "supplier",
+          },
+          {
+            $set: userUpdates,
+          }
+        );
+      }
     }
 
     return res.status(200).json({
       success: true,
-      message: "Supplier updated successfully",
-      data: supplier
+      message: "Supplier updated successfully.",
+      data: {
+        ...supplier.toObject(),
+        companyId: company.companyId,
+      },
     });
-  } catch (error) {
-    if (
-      error.name === "ValidationError" ||
-      error.name === "CastError"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
 
-    console.error("Update supplier error:", error.message);
+  } catch (error) {
+    console.error("Update supplier error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update supplier"
+      message: "Failed to update supplier.",
     });
   }
 };
 
-// Delete supplier
+// ==========================================
+// DEACTIVATE SUPPLIER - BACKEND ONLY
+// ==========================================
+
 exports.deleteSupplier = async (req, res) => {
   try {
-    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
-      return res.status(400).json({
+    if (req.user.role !== "admin" || !req.user.company) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid supplier ID"
+        message: "Admin access required.",
       });
     }
 
-    const supplier = await Supplier.findByIdAndDelete(req.params.id);
+    const companyId = req.user.company._id || req.user.company;
+
+    const company = await Company.findOne({
+      _id: companyId,
+      admin: req.user._id,
+      isActive: true,
+    });
+
+    if (!company) {
+      return res.status(403).json({
+        success: false,
+        message: "Company access denied.",
+      });
+    }
+
+    const supplier = await Supplier.findOne({
+      _id: req.params.id,
+      company: company._id,
+    });
 
     if (!supplier) {
       return res.status(404).json({
         success: false,
-        message: "Supplier not found"
+        message: "Supplier not found.",
       });
+    }
+
+    supplier.isActive = false;
+    await supplier.save();
+
+    if (supplier.user) {
+      await User.updateOne(
+        {
+          _id: supplier.user,
+          company: company._id,
+          role: "supplier",
+        },
+        {
+          $set: { isActive: false },
+        }
+      );
     }
 
     return res.status(200).json({
       success: true,
-      message: "Supplier deleted successfully"
+      message: "Supplier deactivated successfully.",
     });
+
   } catch (error) {
-    console.error("Delete supplier error:", error.message);
+    console.error("Deactivate supplier error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to delete supplier"
+      message: "Failed to deactivate supplier.",
     });
   }
 };

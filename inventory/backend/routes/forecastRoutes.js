@@ -1,14 +1,17 @@
-
 const express = require("express");
 const router = express.Router();
 
 const forecastController = require("../controllers/forecastController");
 const { authMiddleware } = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
-// Forecast requires a valid JWT token
+// All forecast routes require authentication
+router.use(authMiddleware);
+
+// Admin and Employee can generate forecasts
 router.post(
   "/",
-  authMiddleware,
+  authorizeRoles("admin", "employee"),
   forecastController.forecastSales
 );
 

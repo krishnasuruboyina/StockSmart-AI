@@ -1,43 +1,39 @@
-
 const express = require("express");
 const router = express.Router();
 
 const purchaseRequestController = require("../controllers/purchaseRequestController");
 
-const {
-  authMiddleware,
-  adminMiddleware,
-} = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
-// Only admins can create purchase requests
+// All routes require authentication
+router.use(authMiddleware);
+
+// Admin and Employee can create purchase requests
 router.post(
   "/",
-  authMiddleware,
-  adminMiddleware,
+  authorizeRoles("admin", "employee"),
   purchaseRequestController.createPurchaseRequest
 );
 
-// Only admins can view all purchase requests
+// Admin sees all company requests; Employee sees own requests
 router.get(
   "/",
-  authMiddleware,
-  adminMiddleware,
+  authorizeRoles("admin", "employee"),
   purchaseRequestController.getPurchaseRequests
 );
 
-// Only admins can update request status
+// Only Admin can approve or reject requests
 router.patch(
   "/:id/status",
-  authMiddleware,
-  adminMiddleware,
+  authorizeRoles("admin"),
   purchaseRequestController.updatePurchaseRequestStatus
 );
 
-// Only admins can mark requests as received
+// Stock updates happen only through delivery confirmation
 router.patch(
   "/:id/received",
-  authMiddleware,
-  adminMiddleware,
+  authorizeRoles("admin"),
   purchaseRequestController.markPurchaseRequestReceived
 );
 

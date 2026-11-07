@@ -1,14 +1,17 @@
-
 const express = require("express");
 const router = express.Router();
 
 const reorderController = require("../controllers/reorderController");
 const { authMiddleware } = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
-// Reorder check requires a valid JWT token
+// All reorder routes require authentication
+router.use(authMiddleware);
+
+// Admin and Employee can run automatic reorder checks
 router.get(
   "/",
-  authMiddleware,
+  authorizeRoles("admin", "employee"),
   reorderController.checkReorderNeeded
 );
 

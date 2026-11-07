@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -11,17 +10,22 @@ import {
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
+  Building2,
+  Hash,
 } from "lucide-react";
+
+import { registerUser } from "../services/authService";
 
 export default function Register() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    companyName: "",
+    companyId: "",
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: "user",
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -43,6 +47,8 @@ export default function Register() {
     setSuccess("");
 
     if (
+      !formData.companyName.trim() ||
+      !formData.companyId.trim() ||
       !formData.name.trim() ||
       !formData.email.trim() ||
       !formData.password ||
@@ -65,46 +71,36 @@ export default function Register() {
     try {
       setLoading(true);
 
-      // Render URL includes /api.
-      // Local URL also includes /api.
-      const API_URL =
-        import.meta.env.VITE_API_URL ||
-        "http://localhost:5000/api";
-
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-          role: formData.role,
-        }),
+      await registerUser({
+        companyName: formData.companyName.trim(),
+        companyId: formData.companyId.trim(),
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        role: "admin",
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed.");
-      }
-
       setSuccess(
-        "Account created successfully! Redirecting to login..."
+        "Company and Admin account created successfully! Redirecting to login..."
       );
 
       setTimeout(() => {
         navigate("/login");
       }, 1500);
+
     } catch (err) {
       setError(
-        err.message || "Unable to connect to server. Please try again."
+        err.response?.data?.message ||
+        err.message ||
+        "Registration failed. Please try again."
       );
     } finally {
       setLoading(false);
     }
   };
+
+  const inputClass =
+    "w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 
   return (
     <div
@@ -118,6 +114,7 @@ export default function Register() {
 
         {/* Left information panel */}
         <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-[#123D80] via-[#071941] to-[#1761A8]">
+
           <div>
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-cyan-300/15">
@@ -142,21 +139,22 @@ export default function Register() {
               </h2>
 
               <p className="mt-5 text-sm leading-7 text-blue-100/70">
-                Create your account to access intelligent inventory
-                management, AI demand forecasting, and automated
-                procurement features.
+                Register your company and manage inventory,
+                employees, suppliers, AI demand forecasting,
+                and automated procurement from one place.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-blue-100/70">
             <ShieldCheck size={19} className="text-cyan-300" />
-            Smart, secure and efficient management
+            Secure Company Registration
           </div>
         </div>
 
         {/* Registration form */}
         <div className="bg-white text-slate-800 p-7 sm:p-10">
+
           <button
             type="button"
             onClick={() => navigate("/")}
@@ -174,19 +172,67 @@ export default function Register() {
           </div>
 
           <h2 className="text-2xl font-bold text-slate-900">
-            Create Account
+            Register Your Company
           </h2>
 
           <p className="text-sm text-slate-500 mt-2 mb-6">
-            Register to get started with InventoryPro.
+            Create your company and Admin account.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Name */}
+            {/* Company Name */}
             <div>
               <label className="block text-sm font-semibold mb-2">
-                Full Name
+                Company Name
+              </label>
+
+              <div className="relative">
+                <Building2
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+
+                <input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  placeholder="Enter company name"
+                  className={inputClass}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Company ID */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">
+                Company ID
+              </label>
+
+              <div className="relative">
+                <Hash
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+
+                <input
+                  type="text"
+                  name="companyId"
+                  value={formData.companyId}
+                  onChange={handleChange}
+                  placeholder="Enter unique company ID"
+                  className={inputClass}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Admin Name */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">
+                Admin Full Name
               </label>
 
               <div className="relative">
@@ -200,8 +246,8 @@ export default function Register() {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="Enter your full name"
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Enter Admin name"
+                  className={inputClass}
                   required
                 />
               </div>
@@ -224,28 +270,11 @@ export default function Register() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Enter admin email"
+                  className={inputClass}
                   required
                 />
               </div>
-            </div>
-
-            {/* Role */}
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                Account Role
-              </label>
-
-              <select
-  name="role"
-  value={formData.role}
-  onChange={handleChange}
-  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 bg-white"
->
-  <option value="user">User</option>
-  <option value="admin">Admin</option>
-</select>
             </div>
 
             {/* Password */}
@@ -267,6 +296,7 @@ export default function Register() {
                   onChange={handleChange}
                   placeholder="Create a password"
                   className="w-full pl-10 pr-11 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  minLength={8}
                   required
                 />
 
@@ -285,7 +315,7 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Confirm password */}
+            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-semibold mb-2">
                 Confirm Password
@@ -343,13 +373,13 @@ export default function Register() {
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-semibold py-3 rounded-xl text-sm transition shadow-lg shadow-blue-700/20"
             >
-              {loading ? "Creating Account..." : "Create Account"}
+              {loading ? "Creating Company..." : "Register Company"}
               {!loading && <ArrowRight size={17} />}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-6">
-            Already have an account?{" "}
+            Already registered?{" "}
             <Link
               to="/login"
               className="text-blue-700 font-bold hover:underline"
@@ -361,6 +391,7 @@ export default function Register() {
           <p className="text-center text-[11px] text-slate-400 mt-7">
             © 2026 InventoryPro. All rights reserved.
           </p>
+
         </div>
       </div>
     </div>
