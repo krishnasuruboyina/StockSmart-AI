@@ -37,7 +37,7 @@ import SupplierDashboard from "./pages/SupplierDashboard";
 import SupplierOrders from "./pages/SupplierOrders";
 
 // Components and Layout
-import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedRoute from "./components/protectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
 
 export default function App() {
