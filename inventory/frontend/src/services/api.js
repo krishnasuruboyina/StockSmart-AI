@@ -2,9 +2,8 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL:
-    import.meta.env.VITE_API_URL ||
-    "https://stocksmart-ai.onrender.com",
-
+  import.meta.env.VITE_API_URL ||
+  "https://stocksmart-ai-txhd.onrender.com",
   headers: {
     "Content-Type": "application/json",
   },
