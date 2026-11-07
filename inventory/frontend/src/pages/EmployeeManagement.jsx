@@ -14,7 +14,7 @@ import {
   getEmployees,
   addEmployee,
   deleteEmployee,
-} from "../services/employeeService";
+} from "../services/EmployeeService";
 
 import { useAuth } from "../context/AuthContext";
 
