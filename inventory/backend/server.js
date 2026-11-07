@@ -19,7 +19,7 @@ if (!process.env.JWT_SECRET) {
 // 2. CORS configuration
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://ai-inventory-procurement-1.onrender.com",
+  "https://YOUR-FRONTEND-URL.onrender.com",
 ];
 
 app.use(
