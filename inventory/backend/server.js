@@ -19,9 +19,8 @@ if (!process.env.JWT_SECRET) {
 // 2. CORS configuration
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://stocksmart-ai-txhd.onrender.com/",
+  "https://stocksmart-ai-1.onrender.com",
 ];
-
 app.use(
   cors({
     origin: (origin, callback) => {
