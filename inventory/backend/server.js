@@ -20,6 +20,7 @@ if (!process.env.JWT_SECRET) {
 const allowedOrigins = [
   "http://localhost:5173",
   "https://stocksmart-ai-1.onrender.com",
+  "https://stocksmart-ai.onrender.com",
   "https://stocksmart-inventory-1.onrender.com",
 ];
 app.use(
